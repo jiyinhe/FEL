@@ -72,16 +72,22 @@ public class RunFELOntheGrid extends Configured implements Tool {
         @Override
         public void map( K key, Text t, Context context ) throws IOException, InterruptedException {
             String[] parts = t.toString().split( "\t" );
+	    //hack: assume there is an ID, if not, the query itself is its ID
+	    String Id = parts[0];
             String q = parts[ parts.length - 1 ];
             q = Normalize.normalize( q ); //we're doing this twice
             q = q.replaceAll( "\\+", " " ).toLowerCase();
             List<EntityResult> results = fel.getResults( q, threshold );
+	   
+	    String intentPart = q;
             if( results.size() > 0 ) {
-                EntityResult res = results.get( 0 );
-                String typeofEntity = entity2Id.get( ( ( EntitySpan ) res.s ).e.type );
-                if( typeofEntity == null ) typeofEntity = "NF";
-                String intentPart = Normalize.getIntentPart( q, res.text.toString() );
-                String resultString = typeofEntity + "\t" + q + "\t" + intentPart + " \t " + res.text;
+     		//hack: Get all results instead of 1, filter it later
+		for (int i = 0; i < results.size(); i++){
+	            EntityResult res = results.get( i );
+        	    String typeofEntity = entity2Id.get( ( ( EntitySpan ) res.s ).e.type );
+                    if( typeofEntity == null ) typeofEntity = "NF";
+                    intentPart = Normalize.getIntentPart( intentPart, res.text.toString() );
+	            String resultString = Id + "\t" + typeofEntity + "\t" + q + "\t" + intentPart + " \t " + res.text + "\t" + res.score + "\t" + (i + 1) + "/" + results.size();
                 //Pig-friendly custom output
         /*StringBuffer sb = new StringBuffer();
 		sb.append( "(" );
@@ -107,8 +113,9 @@ public class RunFELOntheGrid extends Configured implements Tool {
 		sb.append( "})" );				
 		String resultString = sb.toString();
 		*/
-                context.getCounter( MyCounters.NUM_RECORDS ).increment( 1 );
-                context.write( new Text( resultString ), new LongWritable( 1 ) );
+                    context.getCounter( MyCounters.NUM_RECORDS ).increment( 1 );
+                    context.write( new Text( resultString ), new LongWritable( 1 ) );
+		}
             }
         }
     }
